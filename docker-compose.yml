@@ -1,0 +1,105 @@
+version: "3.8"
+
+# Real-time Big Data Pipeline
+# Kafka → Spark Structured Streaming → MongoDB (raw) + PostgreSQL (analytics) → Grafana
+#
+# Quick start:
+#   docker compose up -d
+#   python kafka/producer.py          # generate IoT sensor events
+#   spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.mongodb.spark:spark-mongodb_2.12:10.4.0 \
+#                 --py-files mongodb/mongo_utils.py spark/streaming_job.py
+#   open http://localhost:3000  (admin/admin)
+
+services:
+  # ────────────────────────────────────────────────────────────────
+  # Apache Kafka: distributed event streaming backbone
+  # ────────────────────────────────────────────────────────────────
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: "controller,broker"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9092:9092"
+
+  # ────────────────────────────────────────────────────────────────
+  # Kafka UI: topic + consumer group inspection
+  # ────────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectus/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: "kafka:9092"
+    depends_on:
+      - kafka
+
+  # ────────────────────────────────────────────────────────────────
+  # PostgreSQL: analytics / relational store
+  # ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pipeline
+      POSTGRES_USER: pipeline
+      POSTGRES_PASSWORD: pipeline
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # ────────────────────────────────────────────────────────────────
+  # MongoDB: raw event store (document model)
+  # ────────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: pipeline
+    volumes:
+      - ./mongodb/init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - mongodata:/data/db
+    ports:
+      - "27017:27017"
+
+  # ────────────────────────────────────────────────────────────────
+  # Grafana: visualization / operational dashboard
+  # ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
+  mongodata:
+  grafanadata:

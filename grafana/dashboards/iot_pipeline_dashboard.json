@@ -1,0 +1,135 @@
+{
+  "dashboard": {
+    "title": "IoT Real-Time Pipeline",
+    "description": "Operational dashboard for the Kafka → Spark → MongoDB/PostgreSQL → Grafana pipeline.",
+    "tags": ["iot", "spark", "kafka", "bigdata"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": { "from": "now-1h", "to": "now" },
+    "annotations": { "list": [] },
+    "templating": { "list": [] },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Events per minute (raw MongoDB)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "datasource": { "type": "mongo", "uid": "MongoDB" },
+        "targets": [
+          {
+            "refId": "A",
+            "collection": "events",
+            "query": {
+              "aggregate": [
+                { "$match": { "timestamp_ms": { "$gte": { "$date": "${__from:date()}" }, "$lte": { "$date": "${__to:date()}" } } } },
+                { "$group": { "_id": { "$dateToString": { "format": "%Y-%m-%dT%H:%M:00Z", "date": "$timestamp_ms" } }, "count": { "$sum": 1 } } },
+                { "$sort": { "_id": 1 } }
+              ],
+              "countDistinct": false,
+              "limit": 1000
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        }
+      },
+      {
+        "id": 2,
+        "title": "Avg Power per Device (PostgreSQL)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "datasource": { "type": "postgres", "uid": "PostgreSQL" },
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT window_start AS time, device_id, avg_power_w AS value FROM device_metrics WHERE window_start >= $from AND window_start <= $to ORDER BY window_start",
+            "dataset": "timeseries"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "watt", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        }
+      },
+      {
+        "id": 3,
+        "title": "Voltage Range per Device (min/max)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "datasource": { "type": "postgres", "uid": "PostgreSQL" },
+        "targets": [
+          {
+            "refId": "max",
+            "rawSql": "SELECT window_start AS time, max(max_voltage_v) AS value FROM device_metrics WHERE window_start >= $from AND window_start <= $to GROUP BY window_start ORDER BY window_start",
+            "dataset": "timeseries"
+          },
+          {
+            "refId": "min",
+            "rawSql": "SELECT window_start AS time, min(min_voltage_v) AS value FROM device_metrics WHERE window_start >= $from AND window_start <= $to GROUP BY window_start ORDER BY window_start",
+            "dataset": "timeseries"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "volt", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        }
+      },
+      {
+        "id": 4,
+        "title": "Grid Frequency (avg)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "datasource": { "type": "postgres", "uid": "PostgreSQL" },
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT window_start AS time, avg(avg_freq_hz) AS value FROM device_metrics WHERE window_start >= $from AND window_start <= $to GROUP BY window_start ORDER BY window_start",
+            "dataset": "timeseries"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "hertz", "custom": { "drawStyle": "line", "fillOpacity": 10 } },
+          "overrides": []
+        }
+      },
+      {
+        "id": 5,
+        "title": "Active Devices (latest)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+        "datasource": { "type": "postgres", "uid": "PostgreSQL" },
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT COUNT(DISTINCT device_id) AS value FROM device_metrics WHERE window_start >= $from AND window_start <= $to",
+            "dataset": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "short", "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } },
+          "overrides": []
+        }
+      },
+      {
+        "id": 6,
+        "title": "Total Samples Processed",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+        "datasource": { "type": "postgres", "uid": "PostgreSQL" },
+        "targets": [
+          {
+            "refId": "A",
+            "rawSql": "SELECT SUM(sample_count) AS value FROM device_metrics WHERE window_start >= $from AND window_start <= $to",
+            "dataset": "table"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } },
+          "overrides": []
+        }
+      }
+    ]
+  }
+}

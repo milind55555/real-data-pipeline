@@ -1,0 +1,10 @@
+# Grafana dashboard provisioning.
+# Loads the IoT pipeline dashboard from file on container start.
+apiVersion: 1
+providers:
+  - name: "iot-pipeline"
+    folder: "IoT"
+    type: file
+    disable: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/iot_pipeline_dashboard.json

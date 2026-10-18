@@ -1,0 +1,5 @@
+# Python dependencies for the IoT real-time pipeline.
+kafka-python==2.0.2
+pyspark==3.5.0
+pymongo==4.6.0
+psycopg2-binary==2.9.9

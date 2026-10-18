@@ -1,0 +1,25 @@
+apiVersion: 1
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: pipeline
+    user: pipeline
+    password: pipeline
+    isDefault: true
+    jsonData:
+      sslmode: disable
+      postgresVersion: 160001
+      maxOpenConns: 10
+      maxIdleConns: 2
+    editable: true
+  - name: MongoDB
+    type: mongo
+    access: proxy
+    database: pipeline
+    isDefault: false
+    jsonData:
+      database: pipeline
+      collection: events
+    editable: true
